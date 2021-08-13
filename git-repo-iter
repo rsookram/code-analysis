@@ -1,0 +1,56 @@
+#!/usr/bin/env python3
+#
+# git-repo-iter is a command line tool for collecting data from a git repository
+# over time.
+#
+#
+# Usage
+#
+#   git-repo-iter cmd [FILE]
+#
+#
+# Input
+# - CSV (without header) through stdin where the first column is a commit hash
+# - Two positional arguments:
+#   - (cmd) a shell command to run for each commit
+#   - (FILE) the path to a file which contains previous results (optional)
+#     - the contents of this file must be a CSV where the first column is a
+#       commit hash
+#
+# Output
+# - CSV with columns from stdin along with a new column containing the new
+#   results from running cmd
+#
+#
+# Example usage (Number of Java files in codebase by day)
+#
+#   git log --pretty='%H,%aI' --no-merges | awk -F, '!a[substr($2, 1, 10)]++' | git-repo-iter 'fd -e java | wc -l'
+
+import csv
+import os
+import subprocess
+import sys
+
+
+cmd = sys.argv[1]
+results_file = sys.argv[2] if len(sys.argv) > 2 else None
+
+if results_file is not None and os.path.isfile(results_file):
+    with open(results_file, newline='') as file:
+        completed = { row[0] for row in csv.reader(file) }
+else:
+    completed = {}
+
+writer = csv.writer(sys.stdout)
+
+for row in csv.reader(sys.stdin):
+    hash = row[0]
+    if hash not in completed:
+        subprocess.run(['git', 'checkout', hash, '--quiet'])
+
+        output = subprocess.check_output(cmd, shell=True, text=True)
+
+        row.append(output.strip())
+
+        writer.writerow(row)
+        sys.stdout.flush()
