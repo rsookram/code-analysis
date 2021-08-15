@@ -1,0 +1,35 @@
+#!/bin/bash
+#
+# Usage
+#
+#   loc-change-by-contributor [FILE]
+#
+# Input
+# - [FILE] the path to the file / directory to analyze (defaults to current
+#   directory)
+#
+# Output
+# - one line for each contributor to FILE in the format: `COUNT USERNAME`
+#   - COUNT is the total number of lines added to the file by the contributor
+#     (negative if the contributor decreased the total)
+#   - USERNAME is the username from the contributor's email address
+
+FILE="${1:-.}"
+
+git log --no-merges --pretty='%ae' --numstat -- "$FILE" |
+  awk '
+    $0 {
+      if ($1 ~ /@/) {
+        email = $1
+      } else {
+        stats[email] += $1 - $2
+      }
+    }
+
+    END {
+      for (email in stats) {
+        print stats[email], email
+      }
+    }
+  ' |
+  sed 's/@.*//'
